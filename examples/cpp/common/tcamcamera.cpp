@@ -269,7 +269,6 @@ TcamCamera::TcamCamera(std::string serial = "")
     create_pipeline();
     if (serial != "")
         g_object_set(tcambin_, "serial", serial.c_str(), nullptr);
-    ensure_ready_state();
     GstElement *src = gst_bin_get_by_name(GST_BIN(tcambin_), "tcambin-source");
     assert(src);
     g_object_set(src, "do-timestamp", false, nullptr);
@@ -305,24 +304,11 @@ TcamCamera::create_pipeline()
 
 }
 
-void
-TcamCamera::ensure_ready_state()
-{
-    GstState state;
-    if ((gst_element_get_state(tcambin_, &state, nullptr, GST_CLOCK_TIME_NONE) == GST_STATE_CHANGE_SUCCESS) &&
-        state == GST_STATE_NULL)
-    {
-        gst_element_set_state(tcambin_, GST_STATE_READY);
-        gst_element_get_state(tcambin_, nullptr, nullptr, GST_CLOCK_TIME_NONE);
-    }
-}
-
 std::vector<VideoFormatCaps>
 TcamCamera::initialize_format_list()
 {
     GstState state;
     gst_element_set_state(tcambin_, GST_STATE_READY);
-    gst_element_get_state(tcambin_, nullptr, nullptr, GST_CLOCK_TIME_NONE);
 
     std::vector<VideoFormatCaps> ret;
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline_), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
@@ -522,14 +508,6 @@ TcamCamera::get_property(std::string name)
 std::vector<std::shared_ptr<Property>>
 TcamCamera::get_camera_property_list()
 {
-    GstState old_state;
-    gst_element_get_state(tcambin_, &old_state, nullptr, 5 * GST_SECOND);
-    if (old_state == GST_STATE_NULL)
-    {
-        // ensure we have a capture pipeline
-        gst_element_set_state(tcambin_, GST_STATE_PAUSED);
-        gst_element_get_state(tcambin_, nullptr, nullptr, 5 * GST_SECOND);
-    }
     GSList *names = tcam_prop_get_tcam_property_names(TCAM_PROP(tcambin_));
     std::vector<std::shared_ptr<Property>> pptylist;
 
@@ -542,8 +520,6 @@ TcamCamera::get_camera_property_list()
         }
         catch(...)  {}
     }
-
-    gst_element_set_state(tcambin_, old_state);
 
     return pptylist;
 }
@@ -580,7 +556,6 @@ bool
 TcamCamera::start()
 {
     gst_element_set_state(pipeline_, GST_STATE_PLAYING);
-    gst_element_get_state(pipeline_, NULL, NULL, GST_CLOCK_TIME_NONE);
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline_),
                               GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
     return TRUE;
