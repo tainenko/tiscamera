@@ -1159,7 +1159,7 @@ static GstCaps* find_input_caps_dutils (GstCaps* available_caps,
                                  bool& /*requires_jpegdec*/,
                                  bool& requires_dutils)
 {
-    requires_vidoeconvert = true;
+    requires_vidoeconvert = false;
 
     GstElementFactory* dutils = gst_element_factory_find("tcamdutils");
 
