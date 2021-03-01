@@ -28,7 +28,7 @@ int main (int argc, char *argv[])
     gst_init(&argc, &argv); // init gstreamer
 
     // set this if you do not want the first found device
-    char* serial = NULL;
+    char* serial = "14610619";
 
     /* create a tcambin to retrieve device information */
     GstElement* source = gst_element_factory_make("tcambin", "source");

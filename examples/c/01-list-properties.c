@@ -14,35 +14,21 @@
  * limitations under the License.
  */
 
-/* This example will show you how to list the available properties */
+/* This example shows how to list the available properties. 
+ * For some camera models some properties are performed in software. 
+ * These properties are available after a pipeline has been started.
+ * Therefore, this sample shows the available properties before and
+ * after the pipeline has been started.
+*/
 
 #include <gst/gst.h>
-
 #include <stdio.h> /* printf and putchar */
 #include <string.h>
 #include "tcamprop.h" /* gobject introspection interface */
 
-
-
-int main (int argc, char *argv[])
+void listproperties( GstElement *source)
 {
-    gst_init(&argc, &argv); // init gstreamer
-
-    const char* serial = NULL; // set this if you do not want the first found device
-
-    /* create a tcambin to retrieve device information */
-    GstElement* source = gst_element_factory_make("tcambin", "source");
-
-    if (serial != NULL)
-    {
-        GValue val = {};
-        g_value_init(&val, G_TYPE_STRING);
-        g_value_set_static_string(&val, serial);
-
-        g_object_set_property(G_OBJECT(source), "serial", &val);
-    }
-
-    GSList* names = tcam_prop_get_tcam_property_names(TCAM_PROP(source));
+        GSList* names = tcam_prop_get_tcam_property_names(TCAM_PROP(source));
 
     for ( GSList* cur = names; cur != NULL; cur = cur->next )
     {
@@ -79,7 +65,7 @@ int main (int argc, char *argv[])
         const char* t = g_value_get_string(&type);
         if (strcmp(t, "integer") == 0)
         {
-            printf("%s(integer) min: %d max: %d step: %d value: %d default: %d  grouping %s %s\n",
+            printf("%s (integer) min: %d max: %d step: %d value: %d default: %d  grouping %s %s\n",
                    name,
                    g_value_get_int(&min), g_value_get_int(&max),
                    g_value_get_int(&step_size),
@@ -88,7 +74,7 @@ int main (int argc, char *argv[])
         }
         else if (strcmp(t, "double") == 0)
         {
-            printf("%s(double) min: %f max: %f step: %f value: %f default: %f  grouping %s %s\n",
+            printf("%s (double) min: %f max: %f step: %f value: %f default: %f  grouping %s %s\n",
                    name,
                    g_value_get_double(&min), g_value_get_double(&max),
                    g_value_get_double(&step_size),
@@ -97,7 +83,7 @@ int main (int argc, char *argv[])
         }
         else if (strcmp(t, "string") == 0)
         {
-            printf("%s(string) value: %s default: %s  grouping %s %s\n",
+            printf("%s (string) value: %s default: %s  grouping %s %s\n",
                    name,
                    g_value_get_string(&value), g_value_get_string(&default_value),
                    g_value_get_string(&category), g_value_get_string(&group));
@@ -112,7 +98,7 @@ int main (int argc, char *argv[])
                 continue;
             }
 
-            printf("%s(enum) value: %s default: %s  grouping %s %s\n",
+            printf("%s (enum) value: %s default: %s  grouping %s %s\n",
                    name,
                    g_value_get_string(&value), g_value_get_string(&default_value),
                    g_value_get_string(&category), g_value_get_string(&group));
@@ -126,14 +112,14 @@ int main (int argc, char *argv[])
         }
         else if (strcmp(t, "boolean") == 0)
         {
-            printf("%s(boolean) value: %s default: %s  grouping %s %s\n",
+            printf("%s (boolean) value: %s default: %s  grouping %s %s\n",
                    name,
                    g_value_get_boolean(&value) ? "true" : "false", g_value_get_boolean(&default_value) ? "true" : "false",
                    g_value_get_string(&category), g_value_get_string(&group));
         }
         else if (strcmp(t, "button") == 0)
         {
-            printf("%s(button) grouping %s %s\n", name, g_value_get_string(&category), g_value_get_string(&group));
+            printf("%s (button) grouping %s %s\n", name, g_value_get_string(&category), g_value_get_string(&group));
         }
         else
         {
@@ -152,7 +138,53 @@ int main (int argc, char *argv[])
     }
 
     g_slist_free_full(names,g_free);
-    gst_object_unref(source);
 
+}
+
+int main (int argc, char *argv[])
+{
+    gst_init(&argc, &argv); // Init gstreamer
+
+    const char* serial = NULL; // Pass a serial number, if a specific camera shall be used.
+
+    GError *error = NULL;
+    GstElement *pipeline;
+    
+    /* Create a pipeline with a sink*/
+    pipeline = gst_parse_launch( "tcambin name=source ! fakesink" ,&error);
+
+    /* Query the tcambin GStreamer element out of the pipeline*/
+    GstElement* source = gst_bin_get_by_name(GST_BIN(pipeline), "source");
+
+
+    if (serial != NULL)
+    {
+        GValue val = {};
+        g_value_init(&val, G_TYPE_STRING);
+        g_value_set_static_string(&val, serial);
+
+        g_object_set_property(G_OBJECT(source), "serial", &val);
+    }
+
+    printf("Properties before pipeline playing:\n");
+    
+    listproperties(source);
+    
+    /* Now start the pipeline by setting it into PLAYING state.
+     * In PLAYING state the all properties, even the software implemented properties are available */
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    
+    /* Wait for the pipeline has started */
+    gst_element_get_state(pipeline,NULL,NULL,4000000000);
+    printf("\n\nProperties after pipeline playing:\n");
+
+    listproperties(source);
+
+    /* Cleanup and reset state */
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+
+    gst_object_unref(pipeline);
+    gst_object_unref(source);
+    
     return 0;
 }

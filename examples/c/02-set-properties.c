@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-/* This example will show you how to set properties for a certain camera */
+/* This example shows how to set properties for a certain camera 
+ * For some cameras, e.g. DFK 72 models some properties, e.g. Exposure and 
+ * Gain Automatic are performed in software. In this case some properties 
+ * are available after a pipeline has been started. Therefore, this sample
+ * creates a small pipeline and starts it by setting it in state PLAYING. 
+ *
+ * Please use the 01-list-properties sample in order to check which 
+ * properties are available with and without the pipeline being started. 
+ */
 
 #include <gst/gst.h>
 
@@ -41,7 +49,7 @@ void print_properties (GstElement* source)
     }
     else
     {
-        printf("Could not query Exposure Auto\n");
+        printf("Property Exposure Auto is not supported by current device\n");
     }
 
     GValue gain_auto_value = G_VALUE_INIT;
@@ -59,7 +67,7 @@ void print_properties (GstElement* source)
     }
     else
     {
-        printf("Could not query Gain Auto\n");
+        printf("Property Gain Auto is not supported by current device\n");
     }
 
     GValue brightness_value = G_VALUE_INIT;
@@ -78,17 +86,22 @@ void print_properties (GstElement* source)
     }
     else
     {
-        printf("Could not query Brightness\n");
+        printf("Property Brightness is not supported by current device\n");
     }
 }
 
 
 int main (int argc, char *argv[])
 {
-    gst_init(&argc, &argv); // init gstreamer
+    gst_init(&argc, &argv); // Init gstreamer
+    GError *error = NULL;
+    GstElement *pipeline;
+    
+    /* Create a pipeline with a sink*/
+    pipeline = gst_parse_launch( "tcambin name=source ! fakesink" ,&error);
 
-    /* create a tcambin to retrieve device information */
-    GstElement* source = gst_element_factory_make("tcambin", "source");
+    /* Query the tcambin GStreamer element out of the pipeline*/
+    GstElement* tcambin = gst_bin_get_by_name(GST_BIN(pipeline), "source");
 
     const char* serial = NULL;
 
@@ -98,55 +111,60 @@ int main (int argc, char *argv[])
         g_value_init(&val, G_TYPE_STRING);
         g_value_set_static_string(&val, serial);
 
-        g_object_set_property(G_OBJECT(source), "serial", &val);
+        g_object_set_property(G_OBJECT(tcambin), "serial", &val);
     }
 
-    /* in the READY state the camera will always be initialized */
-    gst_element_set_state(source, GST_STATE_READY);
+    /* In  PLAYING state the all properties, even the software implemented ones are available */
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    
+    /* Wait for the pipeline has started */
+    gst_element_get_state(pipeline,NULL,NULL,4000000000);
 
-    /* Device is now in a state for interactions */
+    /* Print the properties for a before/after comparison */
+    print_properties(tcambin);
 
-    /*
-      We print the properties for a before/after comparison,
-     */
-    print_properties(source);
-
-    /*
-      We set the properties to other values
-     */
-
+    /* Set the properties to other values */
+    /* If GigE cameras are in use, use "Off" string instead of boolean FALSE. */
     GValue set_auto = G_VALUE_INIT;
     g_value_init(&set_auto, G_TYPE_BOOLEAN);
 
     g_value_set_boolean(&set_auto, FALSE);
 
-    tcam_prop_set_tcam_property(TCAM_PROP(source),
+    /* Properties are identified by their names */
+    tcam_prop_set_tcam_property(TCAM_PROP(tcambin),
                                 "Exposure Auto", &set_auto);
-    /* reuse set_auto. Auto Exposure and Auto Gain have the same type */
-    tcam_prop_set_tcam_property(TCAM_PROP(source),
+
+    /* Reuse set_autom because Auto Exposure and Auto Gain are or same type */
+    tcam_prop_set_tcam_property(TCAM_PROP(tcambin),
                                 "Gain Auto", &set_auto);
 
     g_value_unset( &set_auto );
 
+    /* The following code shows how to set an integer property. Here 
+     * Brightness is use as example. Not every device has a Brightness
+     * property, so the code execution may fails.
+     */
+     
+    /* Create the GValue variable for the property value */ 
     GValue set_brightness = G_VALUE_INIT;
     g_value_init(&set_brightness, G_TYPE_INT);
 
     g_value_set_int(&set_brightness, 200);
 
-    tcam_prop_set_tcam_property(TCAM_PROP(source),
+    /* Set a new brightness value */
+    tcam_prop_set_tcam_property(TCAM_PROP(tcambin),
                                 "Brightness", &set_brightness);
 
     g_value_unset(&set_brightness);
 
-    /*
-      second print for the before/after comparison
-     */
-    print_properties(source);
+    /* Second print of properties and values for the before/after comparison */
+    print_properties(tcambin);
 
-    /* cleanup, reset state */
-    gst_element_set_state(source, GST_STATE_NULL);
+    /* Cleanup and reset state */
+    gst_element_set_state(pipeline, GST_STATE_NULL);
 
-    gst_object_unref(source);
+    gst_object_unref(tcambin);
+    gst_object_unref(pipeline);
 
     return 0;
 }

@@ -15,8 +15,15 @@
 # limitations under the License.
 
 #
-# This example will show you how to set properties
+# This example shows how to get and set the JSON property description for a certain camera 
 #
+# For some cameras, e.g. DFK 72 models some properties, e.g. Exposure and 
+# Gain Automatic are performed in software. In this case some properties 
+# are available after a pipeline has been started. Therefore, this sample
+# creates a small pipeline and starts it by setting it in state PLAYING. 
+#
+# Please use the 01-list-properties sample in order to check which 
+# properties are available with and without the pipeline being started. 
 
 import sys
 import gi
@@ -33,14 +40,21 @@ def main():
     # Set this to a serial string for a specific camera
     serial = None
 
-    camera = Gst.ElementFactory.make("tcambin")
+    # Create a simple pipeline
+    pipeline = Gst.parse_launch("tcambin name=source ! fakesink")
+
+    # Query the tcambin from the pipeline
+    camera = pipeline.get_by_name("source")
 
     if serial:
         # This is gstreamer set_property
         camera.set_property("serial", serial)
 
-    # in the READY state the camera will always be initialized
-    camera.set_state(Gst.State.READY)
+    # Start the pipeline
+    pipeline.set_state(Gst.State.PLAYING)
+    
+    # Wait until the pipeline has been started
+    pipeline.get_state(4000000000) 
 
     # Print properties for a before/after comparison
     state = camera.get_property("state")
@@ -48,12 +62,11 @@ def main():
     print("State of device is:\n{}".format(state))
 
     # Change JSON description here
-    # not part of this example
+    # JSON handling is not not part of this example
     camera.set_property("state", state)
 
-    # cleanup, reset state
-    camera.set_state(Gst.State.NULL)
-
+    # Clean up
+    pipeline.set_state(Gst.State.NULL)
 
 if __name__ == "__main__":
     sys.exit(main())

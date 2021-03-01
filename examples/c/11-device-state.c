@@ -14,7 +14,16 @@
  * limitations under the License.
  */
 
-/* This example will show you how to get/set the JSON property description for a certain camera */
+/* This example shows how to get/set the JSON property description for a certain camera 
+ * For some cameras, e.g. DFK 72 models some properties, e.g. Exposure and 
+ * Gain Automatic are performed in software. In this case some properties 
+ * are available after a pipeline has been started. Therefore, this sample
+ * creates a small pipeline and starts it by setting it in state PLAYING. 
+ *
+ * Please use the 01-list-properties sample in order to check which 
+ * properties are available with and without the pipeline being started. 
+ */
+
 
 #include <gst/gst.h>
 
@@ -22,13 +31,18 @@
 #include "tcamprop.h" /* gobject introspection interface */
 
 
-
 int main (int argc, char *argv[])
 {
     gst_init(&argc, &argv); // init gstreamer
 
-    /* create a tcambin to retrieve device information */
-    GstElement* source = gst_element_factory_make("tcambin", "source");
+    GError *error = NULL;
+    GstElement *pipeline;
+
+    /* Create a pipeline with a sink*/
+    pipeline = gst_parse_launch( "tcambin name=source ! fakesink" ,&error);
+    /* Query the tcambin GStreamer element out of the pipeline*/
+    //GstElement* source = gst_element_factory_make("tcambin", "source");
+    GstElement* source = gst_bin_get_by_name(GST_BIN(pipeline), "source");
 
     const char* serial = NULL;
 
@@ -41,34 +55,38 @@ int main (int argc, char *argv[])
         g_object_set_property(G_OBJECT(source), "serial", &val);
     }
 
-    /* in the READY state the camera will always be initialized */
-    gst_element_set_state(source, GST_STATE_READY);
+    /* In  PLAYING state the all properties, even the software implemented ones are available */
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    
+    /* Wait for the pipeline has started */
+    gst_element_get_state(pipeline,NULL,NULL,4000000000);
 
     /* Device is now in a state for interactions */
 
     GValue state = G_VALUE_INIT;
 
     g_value_init(&state, G_TYPE_STRING);
-    /*
-      We print the properties for a before/after comparison,
-    */
+    /* Get the state JSON string and print it out for a before/after comparison */
     g_object_get_property(G_OBJECT(source), "state", &state);
 
     printf("State of device is:\n%s", g_value_get_string(&state));
-    /*
-      Change JSON description here
-    */
-    // not part of this example
+    /* Change JSON description or save it to a file here. 
+     * That shall not be part of this example. It is recommended to use a JSON library.
+     */
 
-    /*
-      second print for the before/after comparison
-    */
+    /* Pass a state JSON string to the tcambin */
     g_object_set_property(G_OBJECT(source), "state", &state);
 
+    /* Second read and print for the before/after comparison */
+    g_object_get_property(G_OBJECT(source), "state", &state);
+    printf("State of device is:\n%s", g_value_get_string(&state));
+
     /* cleanup, reset state */
-    gst_element_set_state(source, GST_STATE_NULL);
+    gst_element_set_state(pipeline, GST_STATE_NULL);
 
     gst_object_unref(source);
+    gst_object_unref(pipeline);
+
     g_value_unset(&state);
 
     return 0;
