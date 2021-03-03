@@ -1394,15 +1394,23 @@ bool V4l2Device::changeV4L2Control (const property_description& prop_desc)
 
 void V4l2Device::stream ()
 {
+    bool first_image = true;
     int lost_countdown = 0;
     // period elapsed for current image
     int waited_seconds = 0;
+
     // maximum_waiting period
     // do not compare waited_seconds with stream_timeout_sec_ directly
     // stream_timeout_sec_ may be set to low values while we are
     // still waiting for a long exposure image
     // still 'step in between' prevents such errors
-    int waiting_period = stream_timeout_sec_;
+    //
+    // the initial waiting period is taken times 4
+    // the initial frame will usually be discarded to ensure correct
+    // property application for image retrieval
+    // this means we have to wait at least double the exposure time
+    // double that to be on the absolutely secure side
+    int waiting_period = stream_timeout_sec_ * 4;
 
     while (this->is_stream_on)
     {
@@ -1464,13 +1472,23 @@ void V4l2Device::stream ()
             if (ret_value)
             {
                 lost_countdown = lost_countdown_default;    // reset lost countdown variable
+                waited_seconds = 0;
+                first_image = false;
             }
             else
             {
                 lost_countdown--;
             }
-            waiting_period = stream_timeout_sec_;
+            if (first_image)
+            {
+                waiting_period = stream_timeout_sec_ * 4;
+            }
+            else
+            {
+                waiting_period = stream_timeout_sec_;
+            }
         }
+
         if( lost_countdown <= 0 )
         {
             this->is_stream_on = false;
