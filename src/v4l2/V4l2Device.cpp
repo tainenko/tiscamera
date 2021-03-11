@@ -1395,7 +1395,7 @@ bool V4l2Device::changeV4L2Control (const property_description& prop_desc)
 void V4l2Device::stream ()
 {
     bool first_image = true;
-    int lost_countdown = 0;
+    int lost_countdown = lost_countdown_default;
     // period elapsed for current image
     int waited_seconds = 0;
 
